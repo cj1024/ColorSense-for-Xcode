@@ -9,6 +9,7 @@
 #import "OMColorHelper.h"
 #import "OMPlainColorWell.h"
 #import "OMColorFrameView.h"
+#import "NSColor+HexString.h"
 
 #define kOMColorHelperHighlightingDisabled	@"OMColorHelperHighlightingDisabled"
 #define kOMColorHelperInsertionMode			@"OMColorHelperInsertionMode"
@@ -55,7 +56,9 @@
 		_rgbaNSColorRegex = [NSRegularExpression regularExpressionWithPattern:@"\\[\\s*NSColor\\s+colorWith(Calibrated|Device)Red:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s+green:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s+blue:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s+alpha:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s*\\]" options:0 error:NULL];
 		_whiteNSColorRegex = [NSRegularExpression regularExpressionWithPattern:@"\\[\\s*NSColor\\s+colorWith(Calibrated|Device)White:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s+alpha:\\s*([0-9]*\\.?[0-9]*f?)\\s*(\\/\\s*[0-9]*\\.?[0-9]*f?)?\\s*\\]" options:0 error:NULL];
 		_constantColorRegex = [NSRegularExpression regularExpressionWithPattern:@"\\[\\s*(UI|NS)Color\\s+(black|darkGray|lightGray|white|gray|red|green|blue|cyan|yellow|magenta|orange|purple|brown|clear)Color\\s*\\]" options:0 error:NULL];
-	}
+        _rgbColorHexRegex = [NSRegularExpression regularExpressionWithPattern:@"0x[A-Fa-f0-9]{6}" options:0 error:NULL];
+        _argbColorHexRegex = [NSRegularExpression regularExpressionWithPattern:@"0x[A-Fa-f0-9]{8}" options:0 error:NULL];
+    }
 	return self;
 }
 
@@ -297,36 +300,65 @@
 	__block NSRange foundColorRange = NSMakeRange(NSNotFound, 0);
 	__block OMColorType foundColorType = OMColorTypeNone;
 	
-	[_rgbaUIColorRegex enumerateMatchesInString:text options:0 range:NSMakeRange(0, text.length) usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
-		NSRange colorRange = [result range];
-		if (selectedRange.location >= colorRange.location && NSMaxRange(selectedRange) <= NSMaxRange(colorRange)) {
-			NSString *typeIndicator = [text substringWithRange:[result rangeAtIndex:1]];
-			if ([typeIndicator rangeOfString:@"init"].location != NSNotFound) {
-				foundColorType = OMColorTypeUIRGBAInit;
-			} else {
-				foundColorType = OMColorTypeUIRGBA;
-			}
-			
-			// [UIColor colorWithRed:128 / 255.0 green:10 / 255 blue:123/255 alpha:128 /255]
-			
-			double red = [[text substringWithRange:[result rangeAtIndex:2]] doubleValue];
-			red = [self dividedValue:red withDivisorRange:[result rangeAtIndex:3] inString:text];
-			
-			double green = [[text substringWithRange:[result rangeAtIndex:4]] doubleValue];
-			green = [self dividedValue:green withDivisorRange:[result rangeAtIndex:5] inString:text];
-			
-			double blue = [[text substringWithRange:[result rangeAtIndex:6]] doubleValue];
-			blue = [self dividedValue:blue withDivisorRange:[result rangeAtIndex:7] inString:text];
-			
-			double alpha = [[text substringWithRange:[result rangeAtIndex:8]] doubleValue];
-			alpha = [self dividedValue:alpha withDivisorRange:[result rangeAtIndex:9] inString:text];
-			
-			foundColor = [NSColor colorWithCalibratedRed:red green:green blue:blue alpha:alpha];
-			foundColorRange = colorRange;
-			*stop = YES;
-		}
-	}];
-	
+    [_argbColorHexRegex enumerateMatchesInString:text options:0 range:NSMakeRange(0, text.length) usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
+        NSRange colorRange = [result range];
+        if (selectedRange.location >= colorRange.location && NSMaxRange(selectedRange) <= NSMaxRange(colorRange)) {
+            // UIColorFromRGB(0x000000) UIColorFromRGB(0xFFFFFF)
+            foundColorType = OMColorTypeHexARGB;
+            NSString *substring = [text substringWithRange:colorRange];
+            NSString *colorText = [NSColor formatHexString:substring];
+            foundColor = [NSColor colorFromRGBAHexString:colorText];
+            foundColorRange = colorRange;
+            *stop = YES;
+        }
+    }];
+    
+    if (!foundColor) {
+        [_rgbColorHexRegex enumerateMatchesInString:text options:0 range:NSMakeRange(0, text.length) usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
+            NSRange colorRange = [result range];
+            if (selectedRange.location >= colorRange.location && NSMaxRange(selectedRange) <= NSMaxRange(colorRange)) {
+                // UIColorFromRGB(0x000000) UIColorFromRGB(0xFFFFFF)
+                foundColorType = OMColorTypeHexRGB;
+                NSString *substring = [text substringWithRange:colorRange];
+                NSString *colorText = [NSColor formatHexString:substring];
+                foundColor = [NSColor colorFromRGBAHexString:colorText];
+                foundColorRange = colorRange;
+                *stop = YES;
+            }
+        }];
+    }
+    
+    if (!foundColor) {
+        [_rgbaUIColorRegex enumerateMatchesInString:text options:0 range:NSMakeRange(0, text.length) usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
+            NSRange colorRange = [result range];
+            if (selectedRange.location >= colorRange.location && NSMaxRange(selectedRange) <= NSMaxRange(colorRange)) {
+                NSString *typeIndicator = [text substringWithRange:[result rangeAtIndex:1]];
+                if ([typeIndicator rangeOfString:@"init"].location != NSNotFound) {
+                    foundColorType = OMColorTypeUIRGBAInit;
+                } else {
+                    foundColorType = OMColorTypeUIRGBA;
+                }
+                
+                // [UIColor colorWithRed:128 / 255.0 green:10 / 255 blue:123/255 alpha:128 /255] [UIColor colorWithRed:0 / 255.0 green:10 / 255 blue:123/255 alpha:128 /255]
+                
+                double red = [[text substringWithRange:[result rangeAtIndex:2]] doubleValue];
+                red = [self dividedValue:red withDivisorRange:[result rangeAtIndex:3] inString:text];
+                
+                double green = [[text substringWithRange:[result rangeAtIndex:4]] doubleValue];
+                green = [self dividedValue:green withDivisorRange:[result rangeAtIndex:5] inString:text];
+                
+                double blue = [[text substringWithRange:[result rangeAtIndex:6]] doubleValue];
+                blue = [self dividedValue:blue withDivisorRange:[result rangeAtIndex:7] inString:text];
+                
+                double alpha = [[text substringWithRange:[result rangeAtIndex:8]] doubleValue];
+                alpha = [self dividedValue:alpha withDivisorRange:[result rangeAtIndex:9] inString:text];
+                
+                foundColor = [NSColor colorWithCalibratedRed:red green:green blue:blue alpha:alpha];
+                foundColorRange = colorRange;
+                *stop = YES;
+            }
+        }];
+    }
 	if (!foundColor) {
 		[_whiteUIColorRegex enumerateMatchesInString:text options:0 range:NSMakeRange(0, text.length) usingBlock:^(NSTextCheckingResult *result, NSMatchingFlags flags, BOOL *stop) {
 			NSRange colorRange = [result range];
@@ -451,12 +483,17 @@
 
 - (NSString *)colorStringForColor:(NSColor *)color withType:(OMColorType)colorType
 {
+    if (colorType == OMColorTypeHexRGB) {
+        return [color rgbHexString];
+    }
+    if (colorType == OMColorTypeHexARGB) {
+        return [color argbHexString];
+    }
 	NSString *colorString = nil;
 	CGFloat red = -1.0; CGFloat green = -1.0; CGFloat blue = -1.0; CGFloat alpha = -1.0;
 	color = [color colorUsingColorSpace:[NSColorSpace genericRGBColorSpace]];
 	[color getRed:&red green:&green blue:&blue alpha:&alpha];
-		
-	if (red >= 0) {
+    if (red >= 0) {
 		for (NSString *colorName in _constantColorsByName) {
 			NSColor *constantColor = [_constantColorsByName objectForKey:colorName];
 			if ([constantColor isEqual:color]) {
@@ -468,8 +505,7 @@
 				break;
 			}
 		}
-		if (!colorString) {
-			if (fabs(red - green) < 0.001 && fabs(green - blue) < 0.001) {
+		if (!colorString) {if (fabs(red - green) < 0.001 && fabs(green - blue) < 0.001) {
 				if (colorType == OMColorTypeUIRGBA || colorType == OMColorTypeUIWhite || colorType == OMColorTypeUIConstant) {
 					colorString = [NSString stringWithFormat:@"[UIColor colorWithWhite:%.3f alpha:%.3f]", red, alpha];
 				} else if (colorType == OMColorTypeUIRGBAInit || colorType == OMColorTypeUIWhiteInit) {
