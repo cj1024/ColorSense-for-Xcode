@@ -85,4 +85,9 @@
     return [NSString stringWithFormat:@"0x%02lX%02lX%02lX%02lX", (long)round(alpha * 255.0) & 0xFF, (long)round(red * 255.0) & 0xFF, (long)round(green * 255.0) & 0xFF, (long)round(blue * 255.0) & 0xFF];
 }
 
+- (NSString *)rgbaHexString {
+    CGFloat alpha = self.alphaComponent; CGFloat red = self.redComponent; CGFloat green = self.greenComponent; CGFloat blue = self.blueComponent;
+    return [NSString stringWithFormat:@"0x%02lX%02lX%02lX%02lX", (long)round(red * 255.0) & 0xFF, (long)round(green * 255.0) & 0xFF, (long)round(blue * 255.0) & 0xFF, (long)round(alpha * 255.0) & 0xFF];
+}
+
 @end

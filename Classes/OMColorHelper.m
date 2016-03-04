@@ -307,7 +307,7 @@
             foundColorType = OMColorTypeHexARGB;
             NSString *substring = [text substringWithRange:colorRange];
             NSString *colorText = [NSColor formatHexString:substring];
-            foundColor = [NSColor colorFromRGBAHexString:colorText];
+            foundColor = [NSColor colorFromARGBHexString:colorText];
             foundColorRange = colorRange;
             *stop = YES;
         }

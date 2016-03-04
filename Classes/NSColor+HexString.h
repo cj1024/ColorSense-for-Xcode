@@ -14,7 +14,8 @@
 + (NSString *)formatHexString:(NSString *)targetString;
 + (NSColor *)colorFromARGBHexString:(NSString *)hexString;
 + (NSColor *)colorFromRGBAHexString:(NSString *)hexString;
-- (NSString *)argbHexString;
 - (NSString *)rgbHexString;
+- (NSString *)argbHexString;
+- (NSString *)rgbaHexString;
 
 @end
